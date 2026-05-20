@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transfer-Station · Landing Dev</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + Babel (dev only, production uses build.mjs) -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+  <!-- Site config (must load first) -->
+  <script src="site.config.js"></script>
+
+  <!-- Tweaks panel -->
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+
+  <!-- Data + helpers -->
+  <script src="src/i18n.js"></script>
+  <script src="src/data.js"></script>
+
+  <!-- React components -->
+  <script type="text/babel" src="src/icons.jsx"></script>
+  <script type="text/babel" src="src/shell.jsx"></script>
+  <script type="text/babel" src="src/landing.jsx"></script>
+  <script type="text/babel" src="src/public-pages.jsx"></script>
+  <script type="text/babel" src="src/auth.jsx"></script>
+  <script type="text/babel" src="src/dashboard-shell.jsx"></script>
+  <script type="text/babel" src="src/dashboard-overview.jsx"></script>
+  <script type="text/babel" src="src/dashboard-keys-usage.jsx"></script>
+  <script type="text/babel" src="src/dashboard-billing-settings.jsx"></script>
+  <script type="text/babel" src="src/chat.jsx"></script>
+  <script type="text/babel" src="src/app.jsx"></script>
+</body>
+</html>

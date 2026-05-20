@@ -1,0 +1,161 @@
+# =============================================================================
+# Transfer-Station — 一键部署 AI API 中转站
+# =============================================================================
+# 要求: Docker Compose V2 (docker compose, 非 docker-compose)
+# 注意: deploy.resources 内存限制需要 Docker Engine 20.10+ 和 Compose 2.4+
+#       如果你的环境不支持，删除 deploy 段即可，不影响功能
+# =============================================================================
+# 快速开始:
+#   1. ./setup.sh            (生成 .env + nginx 配置)
+#   2. docker compose up -d  (拉起全部服务)
+#   3. 浏览器打开 https://你的域名
+#
+# 可选聊天 UI:
+#   docker compose --profile chat up -d
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Sub2API — AI 网关 / 号池调度 / 计费 / 支付
+  # ---------------------------------------------------------------------------
+  sub2api:
+    image: weishaw/sub2api:latest
+    container_name: sub2api
+    restart: unless-stopped
+    ulimits:
+      nofile: { soft: 100000, hard: 100000 }
+    ports:
+      - "127.0.0.1:${SUB2API_PORT:-8080}:8080"
+    volumes:
+      - ./data/sub2api:/app/data
+    environment:
+      - AUTO_SETUP=true
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=${SERVER_MODE:-release}
+      - RUN_MODE=${RUN_MODE:-standard}
+      # 数据库
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${POSTGRES_USER:-sub2api}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - DATABASE_SSLMODE=disable
+      - DATABASE_MAX_OPEN_CONNS=${DATABASE_MAX_OPEN_CONNS:-50}
+      - DATABASE_MAX_IDLE_CONNS=${DATABASE_MAX_IDLE_CONNS:-10}
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      # 管理员
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      # JWT / TOTP — 必须固定，否则重启后用户全掉线
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:?TOTP_ENCRYPTION_KEY is required}
+      # 时区
+      - TZ=${TZ:-Asia/Shanghai}
+      # Gemini OAuth（可选）
+      - GEMINI_OAUTH_CLIENT_ID=${GEMINI_OAUTH_CLIENT_ID:-}
+      - GEMINI_OAUTH_CLIENT_SECRET=${GEMINI_OAUTH_CLIENT_SECRET:-}
+      # 图片生成
+      - GATEWAY_IMAGE_STREAM_DATA_INTERVAL_TIMEOUT=${GATEWAY_IMAGE_STREAM_DATA_INTERVAL_TIMEOUT:-900}
+      - GATEWAY_IMAGE_STREAM_KEEPALIVE_INTERVAL=${GATEWAY_IMAGE_STREAM_KEEPALIVE_INTERVAL:-10}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:   { memory: 280M }
+        reservations: { memory: 100M }
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:18-alpine
+    container_name: sub2api-postgres
+    restart: unless-stopped
+    ulimits:
+      nofile: { soft: 100000, hard: 100000 }
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-sub2api}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-sub2api}
+      - PGDATA=/var/lib/postgresql/data
+      - TZ=${TZ:-Asia/Shanghai}
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sub2api} -d ${POSTGRES_DB:-sub2api}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:   { memory: 220M }
+        reservations: { memory: 80M }
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:8-alpine
+    container_name: sub2api-redis
+    restart: unless-stopped
+    ulimits:
+      nofile: { soft: 100000, hard: 100000 }
+    volumes:
+      - ./data/redis:/data
+    command: >
+      sh -c 'redis-server
+        --save 60 1
+        --appendonly yes
+        --appendfsync everysec
+        ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}'
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - REDISCLI_AUTH=${REDIS_PASSWORD:-}
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:   { memory: 60M }
+        reservations: { memory: 20M }
+
+  # ---------------------------------------------------------------------------
+  # Hermes Web UI — 可选聊天前端 (docker compose --profile chat up -d)
+  # ---------------------------------------------------------------------------
+  hermes-webui:
+    image: ekkoye8888/hermes-web-ui:latest
+    container_name: hermes-webui
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HERMES_PORT:-6060}:6060"
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+    profiles: [chat]
+    networks: [internal]
+    deploy:
+      resources:
+        limits: { memory: 200M }
+
+networks:
+  internal:
+    driver: bridge

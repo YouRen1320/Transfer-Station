@@ -1,0 +1,98 @@
+# ${DOMAIN} 根域 -> 静态落地页
+# 部署目录: /opt/transfer-station/landing/dist/
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN} www.${DOMAIN};
+    return 301 https://${DOMAIN}$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.${DOMAIN};
+
+    ssl_certificate     /etc/nginx/ssl/${DOMAIN}.crt;
+    ssl_certificate_key /etc/nginx/ssl/${DOMAIN}.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers off;
+
+    return 301 https://${DOMAIN}$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN};
+
+    root /opt/transfer-station/landing/dist;
+    index index.html;
+
+    types {
+        application/javascript js mjs jsx;
+        text/css                css;
+        text/html               html;
+        text/plain              txt;
+        application/xml         xml;
+        image/svg+xml           svg;
+        image/png               png;
+        image/x-icon            ico;
+        font/woff2              woff2;
+        font/woff               woff;
+    }
+    default_type application/octet-stream;
+
+    ssl_certificate     /etc/nginx/ssl/${DOMAIN}.crt;
+    ssl_certificate_key /etc/nginx/ssl/${DOMAIN}.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # 安全头
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # 静态资源压缩
+    gzip on;
+    gzip_types text/plain text/css text/javascript application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+    gzip_comp_level 6;
+
+    # HTML 不缓存，静态资源短缓存
+    location = /index.html {
+        add_header Cache-Control "no-cache, must-revalidate";
+        try_files $uri =404;
+    }
+
+    location ~* \.(jsx|js|mjs)$ {
+        add_header Cache-Control "public, max-age=300";
+        try_files $uri =404;
+    }
+
+    location ~* \.(css|svg|png|jpg|jpeg|gif|webp|ico|woff2?)$ {
+        add_header Cache-Control "public, max-age=86400";
+        try_files $uri =404;
+    }
+
+    # hash routing — 只有静态文件，其余 404
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+
+    # 隐藏 dotfiles
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+}
