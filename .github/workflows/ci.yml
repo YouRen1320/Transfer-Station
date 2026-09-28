@@ -1,0 +1,28 @@
+name: 持续集成
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    name: Compose 配置校验
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: 校验 docker compose 配置（必填变量以测试值代入）
+        env:
+          SUB2API_IMAGE: test:1
+          POSTGRES_PASSWORD: test
+          REDIS_PASSWORD: test
+          ADMIN_PASSWORD: test
+          JWT_SECRET: test
+          TOTP_ENCRYPTION_KEY: test
+        run: docker compose config -q
